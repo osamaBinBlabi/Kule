@@ -72,7 +72,7 @@ struct Sphere {
     float radius;
     Vector3 color;
     float k_s;
-    float shinignes;
+    float shininess;
 
     bool intersect(const Ray &ray, float &t0) const {
         Vector3 L = center - ray.origin;
@@ -94,42 +94,61 @@ struct Sphere {
     }
 };
 
+std::vector<light> lights = {
+    {{80, 100, 50}, {1.0, 0.95, 0.8}, 2.5},
+    {{-60, 40, 20}, {0.6, 0.8, 1.0}, 1.0},
+    {{0, 50, 100}, {1, 1, 1}, 0.5},
+    {{0, -100, -10}, {1.0, 0.8, 0.6}, 0.2}};
+
+std::vector<Sphere> spheres = {
+    {{2, 0, -3}, 1, {0.67, 0, 0}, 0.12, 30},
+    {{-5, -4, -6}, 1.4, {0.67, 0, 0}, 0.35, 120},
+    {{-1, 3, -30}, 10, {0.1, 0.41, 0.1}, 0.95, 350},
+    {{-3, 3, -6}, 3, {0.8, 0.2, 0.2}, 1, 800}};
+
 Vector3 ray_cast(std::vector<Sphere> &spheres, float &nearest_t, Ray &ray, Vector3 &pixel) {
-    std::vector<light> lights = {
-        {{80, 100, 50}, {1.0, 0.95, 0.8}, 2.5},
-        {{-60, 40, 20}, {0.6, 0.8, 1.0}, 1.0},
-        {{0, 50, 100}, {1, 1, 1}, 0.5},
-        {{0, -100, -10}, {1.0, 0.8, 0.6}, 0.2}};
-
-    Vector3 total_color = {0, 0, 0};
-
-    for (const auto &sphere : spheres) {
-        float t0;
-        if (sphere.intersect(ray, t0)) {
+    Sphere sphere;
+    float t0;
+    for (const auto &sphere1 : spheres) {
+        if (sphere1.intersect(ray, t0)) {
             if (t0 < nearest_t) {
-                for (auto &swiatlo : lights) {
-                    nearest_t = t0;
-                    Vector3 P = ray.origin + (ray.direction * t0);
-                    Vector3 N = (P - sphere.center).normalized();
-                    Vector3 L = swiatlo.position - P;
-                    Vector3 V = (ray.origin - P).normalized();
-                    L = L.normalized();
-                    float distance = L.length();
-                    N = N.normalized();
-                    Vector3 R = N * 2 * N.dot(L) - L;
-                    float I = std::max(0.0f, N.dot(L));
-                    I = I / (distance * distance);
-                    I *= swiatlo.intensity;
-                    float specular = std::pow((std::max(0.0f, R.dot(V))), sphere.shinignes) * sphere.k_s;
-
-                    total_color = total_color + ((sphere.color * swiatlo.color * I) + (swiatlo.color * specular));
-                }
-
-                return total_color;
+                nearest_t = t0;
+                sphere = sphere1;
             }
         }
     }
-    return pixel;
+    Vector3 total_color = {0, 0, 0};
+    for (auto &swiatlo : lights) {
+        Vector3 P = ray.origin + (ray.direction * nearest_t);
+        Vector3 N = (P - sphere.center).normalized();
+        Vector3 L = swiatlo.position - P;
+        bool visibleToLight = true;
+
+        Ray shadow(P + N * 1e-3f, L);
+
+        for (const auto &kula : spheres) {
+            float tShadow;
+            if (kula.intersect(shadow, tShadow) && tShadow < L.length()) {
+                visibleToLight = false;
+            }
+        }
+        if (visibleToLight) {
+            Vector3 V = (ray.origin - P).normalized();
+            float distance = L.length();
+            L = L.normalized();
+            Vector3 R = N * 2 * N.dot(L) - L;
+            float I = std::max(0.0f, N.dot(L));
+            I = I / (distance * 0.02f);
+            I *= swiatlo.intensity;
+            float specular = std::pow((std::max(0.0f, R.dot(V))), sphere.shininess) * sphere.k_s;
+
+            total_color = total_color + ((sphere.color * swiatlo.color * I) + (swiatlo.color * specular));
+        }
+    }
+    total_color = total_color + sphere.color * 0.1f;
+    if (nearest_t == std::numeric_limits<float>::max())
+        return pixel;
+    return total_color;
 }
 
 void render() {
@@ -138,13 +157,6 @@ void render() {
     Vector3 camera{0, 0, 0};
     float fov = M_PI / 2.0f;
     std::vector<Vector3> framebuffer(width * height);
-    std::vector<Sphere> spheres = {
-        {{2, 0, -3}, 1, {0.67, 0, 0}, 0.12, 30},
-        {{-5, -4, -6}, 1.4, {0.67, 0, 0}, 0.35, 120},
-        {{-1, 3, -30}, 10, {0.1, 0.41, 0.1}, 0.95, 350},
-        {{-3, 3, -6}, 3, {0.8, 0.2, 0.2}, 1, 800}
-
-    };
 
     for (int j = 0; j < height; ++j) {
         for (int i = 0; i < width; ++i) {
