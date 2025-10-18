@@ -71,6 +71,8 @@ struct Sphere {
     Vector3 center;
     float radius;
     Vector3 color;
+    float k_s;
+    float shinignes;
 
     bool intersect(const Ray &ray, float &t0) const {
         Vector3 L = center - ray.origin;
@@ -110,14 +112,17 @@ Vector3 ray_cast(std::vector<Sphere> &spheres, float &nearest_t, Ray &ray, Vecto
                     Vector3 P = ray.origin + (ray.direction * t0);
                     Vector3 N = (P - sphere.center).normalized();
                     Vector3 L = swiatlo.position - P;
+                    Vector3 V = (ray.origin - P).normalized();
                     L = L.normalized();
-
                     float distance = L.length();
                     N = N.normalized();
+                    Vector3 R = N * 2 * N.dot(L) - L;
                     float I = std::max(0.0f, N.dot(L));
                     I = I / (distance * distance);
-                    I *= swiatlo.intensity / 2.5;
-                    total_color = total_color + ((sphere.color * swiatlo.color) * I);
+                    I *= swiatlo.intensity;
+                    float specular = std::pow((std::max(0.0f, R.dot(V))), sphere.shinignes) * sphere.k_s;
+
+                    total_color = total_color + ((sphere.color * swiatlo.color * I) + (swiatlo.color * specular));
                 }
 
                 return total_color;
@@ -134,9 +139,10 @@ void render() {
     float fov = M_PI / 2.0f;
     std::vector<Vector3> framebuffer(width * height);
     std::vector<Sphere> spheres = {
-        {{2, 0, -3}, 1, {0.67, 0, 0}},
-        {{1, 6, -6}, 1.4, {0.67, 0, 0}},
-        {{-1, 3, -30}, 10, {0.1, 0.41, 0.1}}
+        {{2, 0, -3}, 1, {0.67, 0, 0}, 0.12, 30},
+        {{-5, -4, -6}, 1.4, {0.67, 0, 0}, 0.35, 120},
+        {{-1, 3, -30}, 10, {0.1, 0.41, 0.1}, 0.95, 350},
+        {{-3, 3, -6}, 3, {0.8, 0.2, 0.2}, 1, 800}
 
     };
 
