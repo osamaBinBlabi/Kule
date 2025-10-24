@@ -103,7 +103,7 @@ std::vector<light> lights = {
 Vector3 ray_cast(std::vector<Sphere> &spheres, float &nearest_t, Ray &ray, Vector3 &pixel, int depth) {
     Sphere sphere;
     float t0;
-    int maxDepth = 3;
+    const int maxDepth = 3;
 
     if (depth > maxDepth) {
         return pixel;
@@ -116,6 +116,7 @@ Vector3 ray_cast(std::vector<Sphere> &spheres, float &nearest_t, Ray &ray, Vecto
             }
         }
     }
+    Ray reflect({0, 0, 0}, {0, 0, 0});
     Vector3 total_color = {0, 0, 0};
     for (auto &swiatlo : lights) {
         Vector3 P = ray.origin + (ray.direction * nearest_t);
@@ -136,7 +137,6 @@ Vector3 ray_cast(std::vector<Sphere> &spheres, float &nearest_t, Ray &ray, Vecto
             float distance = L.length();
             L = L.normalized();
             Vector3 R = N * 2 * N.dot(L) - L;
-            Ray reflect({0, 0, 0}, {0, 0, 0});
             reflect.direction = ray.direction - (N * ray.direction.dot(N) * 2);
 
             if (ray.direction.dot(N) < 0) {
@@ -149,12 +149,13 @@ Vector3 ray_cast(std::vector<Sphere> &spheres, float &nearest_t, Ray &ray, Vecto
             I *= swiatlo.intensity;
             float specular = std::pow((std::max(0.0f, R.dot(V))), sphere.shininess) * sphere.k_s;
             total_color = total_color + ((sphere.color * swiatlo.color * I) + (swiatlo.color * specular));
-
-            if (sphere.reflectivity > 0) {
-                Vector3 reflected_color = ray_cast(spheres, nearest_t, reflect, pixel, depth + 1);
-                total_color = total_color * (1 - sphere.reflectivity) + reflected_color * sphere.reflectivity;
-            }
         }
+    }
+
+    if (sphere.reflectivity > 0) {
+        float max_temp = std::numeric_limits<float>::max();
+        Vector3 reflected_color = ray_cast(spheres, max_temp, reflect, pixel, depth + 1);
+        total_color = total_color * (1 - sphere.reflectivity) + reflected_color * sphere.reflectivity;
     }
     total_color = total_color + sphere.color * 0.1f;
     if (nearest_t == std::numeric_limits<float>::max())
@@ -173,7 +174,7 @@ void render() {
         {{2, 0, -3}, 1, {0.67, 0, 0}, 0.12, 30, 0},
         {{-5, -4, -6}, 1.4, {0.67, 0, 0}, 0.35, 120, 0},
         {{-1, 3, -30}, 10, {0.1, 0.41, 0.1}, 0.95, 350, 0},
-        {{-25, 3, -52}, 15, {1, 1, 1}, 1, 800, 1}};
+        {{-25, 3, -52}, 15, {1, 1, 1}, 1 - 0.5, 800 - 700, 0.8}};
 
     for (int j = 0; j < height; ++j) {
         for (int i = 0; i < width; ++i) {
@@ -183,9 +184,7 @@ void render() {
             Vector3 pixel_color = {0.1f, 0.1f, 0.1f};
             float nearest_t = std::numeric_limits<float>::max();
 
-            pixel_color = ray_cast(spheres, nearest_t, ray, pixel_color, 0);
-
-            framebuffer[i + j * width] = pixel_color;
+            framebuffer[i + j * width] = ray_cast(spheres, nearest_t, ray, pixel_color, 0);
         }
     }
 
